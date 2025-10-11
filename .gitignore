@@ -11,7 +11,9 @@ pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
-
+# Database
+*.sql
+*.db
 # OS
 .DS_Store
 
