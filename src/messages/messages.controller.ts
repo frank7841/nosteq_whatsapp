@@ -43,16 +43,25 @@ import {
     @Post('send')
     @HttpCode(HttpStatus.CREATED)
     async sendMessage(@Body() body: SendMessageDto, @Request() req) {
-      if (!body.content || !body.conversationId || !body.customerId || !body.phoneNumber) {
-        throw new BadRequestException('Missing required fields');
+
+      console.log('📥 Received send message request:', body);
+    
+      const { conversationId, customerId, content, phoneNumber } = body;
+      
+      if (!conversationId || !customerId || !content || !phoneNumber) {
+        throw new BadRequestException({
+          message: 'Missing required fields',
+          required: ['conversationId', 'customerId', 'content', 'phoneNumber'],
+          received: body,
+        });
       }
   
       return this.messagesService.sendMessage(
-        body.conversationId,
-        body.customerId,
-        body.content,
+        +conversationId,
+        +customerId,
+        content,
         req.user.userId,
-        body.phoneNumber,
+        phoneNumber,
       );
     }
   

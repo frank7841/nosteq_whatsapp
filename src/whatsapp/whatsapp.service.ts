@@ -22,7 +22,7 @@ export class WhatsAppService {
     @InjectRepository(Message)
     private messageRepository: Repository<Message>,
   ) {
-    this.apiUrl = this.configService.get<string>('WHATSAPP_API_URL') || 'https://graph.facebook.com/v17.0';
+    this.apiUrl = this.configService.get<string>('WHATSAPP_API_URL') || 'https://graph.facebook.com/v22.0';
     this.apiToken = this.configService.get<string>('WHATSAPP_API_TOKEN') || '';
     this.phoneNumberId = this.configService.get<string>('WHATSAPP_PHONE_NUMBER_ID') || '';
   }
@@ -101,91 +101,37 @@ export class WhatsAppService {
     }
   }
 
-  // async sendMediaMessage(
-  //   phoneNumber: string,
-  //   mediaType: 'image' | 'video' | 'document' | 'audio',
-  //   mediaUrl: string,
-  //   caption?: string,
-  //   userId?: number,
-  // ) {
-  //   try {
-  //     // First, upload the media to WhatsApp if it's a URL
-  //     const mediaId = await this.uploadMedia(mediaUrl, mediaType);
-
-  //     const messagePayload: any = {
-  //       messaging_product: 'whatsapp',
-  //       to: phoneNumber,
-  //       type: mediaType,
-  //       [mediaType]: { id: mediaId },
-  //     };
-
-  //     // Add caption for supported media types
-  //     if (caption && (mediaType === 'image' || mediaType === 'video' || mediaType === 'document')) {
-  //       messagePayload[mediaType].caption = caption;
-  //     }
-
-  //     const response = await axios.post(
-  //       `${this.apiUrl}/messages`,
-  //       messagePayload,
-  //       {
-  //         headers: {
-  //           Authorization: `Bearer ${this.apiToken}`,
-  //           'Content-Type': 'application/json',
-  //         },
-  //       },
-  //     );
-
-  //     return response.data;
-  //   } catch (error) {
-  //     console.error('Error sending media message:', error);
-  //     throw new HttpException('Failed to send media message', 500);
-  //   }
-  // }
-
-  private async uploadMedia(mediaUrl: string, mediaType: string): Promise<string> {
-    try {
-      // Download the media file
-      const mediaResponse = await axios.get(mediaUrl, { responseType: 'arraybuffer' });
-      const mediaBuffer = Buffer.from(mediaResponse.data);
-
-      // Upload to WhatsApp Media API
-      const uploadResponse = await axios.post(
-        `${this.apiUrl}/media`,
-        mediaBuffer,
-        {
-          headers: {
-            Authorization: `Bearer ${this.apiToken}`,
-            'Content-Type': this.getContentType(mediaType),
-          },
-        },
-      );
-
-      return uploadResponse.data.id;
-    } catch (error) {
-      console.error('Error uploading media:', error);
-      throw new HttpException('Failed to upload media', 500);
-    }
-  }
-
-  private getContentType(mediaType: string): string {
-    const contentTypes = {
-      image: 'image/jpeg',
-      video: 'video/mp4',
-      audio: 'audio/ogg',
-      document: 'application/pdf',
-    };
-    return contentTypes[mediaType as keyof typeof contentTypes] || 'application/octet-stream';
-  }
-
   async sendMessage(phoneNumber: string, content: string, userId?: number) {
     try {
-      const response = await axios.post(
-        `${this.apiUrl}/messages`,
-        {
+      console.log('WhatsApp API Request:', {
+        url: `${this.apiUrl}`,
+        data: {
           messaging_product: 'whatsapp',
+          recipient_type: 'individual',
           to: phoneNumber,
           type: 'text',
-          text: { body: content },
+          text: { 
+            preview_url: false,
+            body: content 
+          },
+        },
+        headers: {
+          Authorization: `Bearer ${this.apiToken?.substring(0, 20)}...`, // Log partial token for security
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const response = await axios.post(
+        `${this.apiUrl}`,
+        {
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: phoneNumber,
+          type: 'text',
+          text: { 
+            preview_url: false,
+            body: content 
+          },
         },
         {
           headers: {
@@ -195,10 +141,32 @@ export class WhatsAppService {
         },
       );
 
+      console.log('WhatsApp API Success Response:', response.data);
       return response.data;
     } catch (error) {
-      console.error('Error sending message:', error);
-      throw new HttpException('Failed to send message', 500);
+      console.error('WhatsApp API Error Details:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        config: {
+          url: error.config?.url,
+          method: error.config?.method,
+          headers: {
+            ...error.config?.headers,
+            Authorization: error.config?.headers?.Authorization?.substring(0, 20) + '...'
+          }
+        }
+      });
+
+      if (error.response?.data) {
+        console.error('WhatsApp API Error Response Body:', JSON.stringify(error.response.data, null, 2));
+      }
+
+      throw new HttpException(
+        `WhatsApp API Error: ${error.response?.data?.error?.message || error.message}`,
+        error.response?.status || 500
+      );
     }
   }
 
@@ -210,6 +178,20 @@ export class WhatsAppService {
     userId?: number,
   ) {
     try {
+      console.log('WhatsApp API Request:', {
+        url: `${this.apiUrl}/messages`,
+        data: {
+          messaging_product: 'whatsapp',
+          to: phoneNumber,
+          type: mediaType,
+          [mediaType]: { id: await this.uploadMedia(mediaUrl, mediaType) },
+        },
+        headers: {
+          Authorization: `Bearer ${this.apiToken?.substring(0, 20)}...`, // Log partial token for security
+          'Content-Type': 'application/json',
+        },
+      });
+
       // First, upload the media to WhatsApp if it's a URL
       const mediaId = await this.uploadMedia(mediaUrl, mediaType);
 
@@ -236,15 +218,118 @@ export class WhatsAppService {
         },
       );
 
+      console.log('WhatsApp API Success Response:', response.data);
       return response.data;
     } catch (error) {
-      console.error('Error sending media message:', error);
-      throw new HttpException('Failed to send media message', 500);
+      console.error('WhatsApp API Error Details:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        config: {
+          url: error.config?.url,
+          method: error.config?.method,
+          headers: {
+            ...error.config?.headers,
+            Authorization: error.config?.headers?.Authorization?.substring(0, 20) + '...'
+          }
+        }
+      });
+
+      if (error.response?.data) {
+        console.error('WhatsApp API Error Response Body:', JSON.stringify(error.response.data, null, 2));
+      }
+
+      throw new HttpException(
+        `WhatsApp API Error: ${error.response?.data?.error?.message || error.message}`,
+        error.response?.status || 500
+      );
     }
+  }
+
+  private async uploadMedia(mediaUrl: string, mediaType: string): Promise<string> {
+    try {
+      console.log('WhatsApp API Request:', {
+        url: `${this.apiUrl}/media`,
+        data: {
+          media: mediaUrl,
+        },
+        headers: {
+          Authorization: `Bearer ${this.apiToken?.substring(0, 20)}...`, // Log partial token for security
+          'Content-Type': this.getContentType(mediaType),
+        },
+      });
+
+      // Download the media file
+      const mediaResponse = await axios.get(mediaUrl, { responseType: 'arraybuffer' });
+      const mediaBuffer = Buffer.from(mediaResponse.data);
+
+      // Upload to WhatsApp Media API
+      const uploadResponse = await axios.post(
+        `${this.apiUrl}/media`,
+        mediaBuffer,
+        {
+          headers: {
+            Authorization: `Bearer ${this.apiToken}`,
+            'Content-Type': this.getContentType(mediaType),
+          },
+        },
+      );
+
+      console.log('WhatsApp API Success Response:', uploadResponse.data);
+      return uploadResponse.data.id;
+    } catch (error) {
+      console.error('WhatsApp API Error Details:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        config: {
+          url: error.config?.url,
+          method: error.config?.method,
+          headers: {
+            ...error.config?.headers,
+            Authorization: error.config?.headers?.Authorization?.substring(0, 20) + '...'
+          }
+        }
+      });
+
+      if (error.response?.data) {
+        console.error('WhatsApp API Error Response Body:', JSON.stringify(error.response.data, null, 2));
+      }
+
+      throw new HttpException(
+        `WhatsApp API Error: ${error.response?.data?.error?.message || error.message}`,
+        error.response?.status || 500
+      );
+    }
+  }
+
+  private getContentType(mediaType: string): string {
+    const contentTypes = {
+      image: 'image/jpeg',
+      video: 'video/mp4',
+      audio: 'audio/ogg',
+      document: 'application/pdf',
+    };
+    return contentTypes[mediaType as keyof typeof contentTypes] || 'application/octet-stream';
   }
 
   async markMessageAsRead(whatsappMessageId: string) {
     try {
+      console.log('WhatsApp API Request:', {
+        url: `${this.apiUrl}/messages`,
+        data: {
+          messaging_product: 'whatsapp',
+          status: 'read',
+          message_id: whatsappMessageId,
+        },
+        headers: {
+          Authorization: `Bearer ${this.apiToken?.substring(0, 20)}...`, // Log partial token for security
+          'Content-Type': 'application/json',
+        },
+      });
+
       const response = await axios.post(
         `${this.apiUrl}/messages`,
         {
@@ -260,10 +345,32 @@ export class WhatsAppService {
         },
       );
 
+      console.log('WhatsApp API Success Response:', response.data);
       return response.data;
     } catch (error) {
-      console.error('Error marking message as read:', error);
-      throw new HttpException('Failed to mark message as read', 500);
+      console.error('WhatsApp API Error Details:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        config: {
+          url: error.config?.url,
+          method: error.config?.method,
+          headers: {
+            ...error.config?.headers,
+            Authorization: error.config?.headers?.Authorization?.substring(0, 20) + '...'
+          }
+        }
+      });
+
+      if (error.response?.data) {
+        console.error('WhatsApp API Error Response Body:', JSON.stringify(error.response.data, null, 2));
+      }
+
+      throw new HttpException(
+        `WhatsApp API Error: ${error.response?.data?.error?.message || error.message}`,
+        error.response?.status || 500
+      );
     }
   }
 }
