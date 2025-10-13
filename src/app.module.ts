@@ -11,6 +11,7 @@ import { User } from './users/entities/user.entity';
 import { Customer } from './customers/entities/customer.entity';
 import { Conversation } from './conversations/entities/conversation.entity';
 import { Message } from './messages/entities/message.entity';
+import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { Message } from './messages/entities/message.entity';
         synchronize: configService.get('NODE_ENV') === 'development', // Set to false in production
         logging: configService.get('NODE_ENV') === 'development',
         charset: 'utf8mb4',
+        namingStrategy: new SnakeNamingStrategy(),
       }),
       inject: [ConfigService],
     }),

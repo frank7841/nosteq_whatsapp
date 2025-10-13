@@ -42,6 +42,7 @@ export class Message {
   userId: number;
 
   @Column({
+    name:'message_type',
     type: 'enum',
     enum: MessageType,
     default: MessageType.TEXT,
