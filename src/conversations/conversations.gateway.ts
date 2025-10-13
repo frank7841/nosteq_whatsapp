@@ -12,9 +12,13 @@ import { JwtService } from '@nestjs/jwt';
 
 @WebSocketGateway({
   cors: {
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3001',
+    // Allow all origins to quickly resolve CORS issues (tighten via env later if needed)
+    origin: true,
     credentials: true,
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   },
+  transports: ['websocket', 'polling'],
 })
 export class ConversationsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
