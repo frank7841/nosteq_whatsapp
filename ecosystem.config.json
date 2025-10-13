@@ -1,0 +1,11 @@
+{
+    "apps":[{
+        "name": "whatsapp_gateway",
+        "script": "dist/main",
+        "instances": 1,
+        "exec_mode": "fork",
+        "env": {
+            "NODE_ENV": "production"
+        }
+    }]
+}
