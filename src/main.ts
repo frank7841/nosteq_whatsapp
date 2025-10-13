@@ -11,10 +11,28 @@ async function bootstrap() {
   
   // Enable CORS
   app.enableCors({
-    origin: configService.get('CORS_ORIGIN') || 'http://localhost:3001',
+    origin: (origin, callback) => {
+      // Allow requests with no origin (e.g., Postman, curl, server-to-server)
+      if (!origin) {
+        return callback(null, true);
+      }
+      
+      // Allow requests from localhost with any port (development)
+      if (origin.match(/^https?:\/\/localhost:\d+$/)) {  // Added https? for flexibility
+        return callback(null, true);
+      }
+      
+      // Allow specific origins from environment variable (comma-separated)
+      const allowedOrigins = configService.get('CORS_ORIGIN')?.split(',') || [];
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      } else {
+        return callback(new Error('Not allowed by CORS'), false);
+      }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   });
 
   // ✅ CHANGE THIS: Make validation less strict
