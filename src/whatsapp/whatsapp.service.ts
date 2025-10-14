@@ -179,7 +179,7 @@ export class WhatsAppService {
   ) {
     try {
       console.log('WhatsApp API Request:', {
-        url: `${this.apiUrl}/messages`,
+        url: `${this.apiUrl}`,
         data: {
           messaging_product: 'whatsapp',
           to: phoneNumber,
@@ -208,7 +208,7 @@ export class WhatsAppService {
       }
 
       const response = await axios.post(
-        `${this.apiUrl}/messages`,
+        `${this.apiUrl}`,
         messagePayload,
         {
           headers: {
@@ -249,37 +249,48 @@ export class WhatsAppService {
 
   private async uploadMedia(mediaUrl: string, mediaType: string): Promise<string> {
     try {
-      console.log('WhatsApp API Request:', {
-        url: `${this.apiUrl}/media`,
-        data: {
-          media: mediaUrl,
-        },
-        headers: {
-          Authorization: `Bearer ${this.apiToken?.substring(0, 20)}...`, // Log partial token for security
-          'Content-Type': this.getContentType(mediaType),
-        },
-      });
-
-      // Download the media file
+      // Download the media file first
       const mediaResponse = await axios.get(mediaUrl, { responseType: 'arraybuffer' });
       const mediaBuffer = Buffer.from(mediaResponse.data);
 
+      // Create form data for the upload
+      const FormData = require('form-data');
+      const formData = new FormData();
+      
+      // Add the media file
+      formData.append('file', mediaBuffer, {
+        filename: `media.${this.getFileExtension(mediaType)}`,
+        contentType: this.getContentType(mediaType),
+      });
+      
+      // Add required parameters
+      formData.append('messaging_product', 'whatsapp');
+      formData.append('type', mediaType);
+
+      console.log('WhatsApp Media Upload Request:', {
+        url: `https://graph.facebook.com/v22.0/743418468864729/media`,
+        headers: {
+          Authorization: `Bearer ${this.apiToken?.substring(0, 20)}...`,
+          ...formData.getHeaders(),
+        },
+      });
+
       // Upload to WhatsApp Media API
       const uploadResponse = await axios.post(
-        `${this.apiUrl}/media`,
-        mediaBuffer,
+        `https://graph.facebook.com/v22.0/743418468864729/media`,
+        formData,
         {
           headers: {
             Authorization: `Bearer ${this.apiToken}`,
-            'Content-Type': this.getContentType(mediaType),
+            ...formData.getHeaders(),
           },
         },
       );
 
-      console.log('WhatsApp API Success Response:', uploadResponse.data);
+      console.log('WhatsApp Media Upload Success Response:', uploadResponse.data);
       return uploadResponse.data.id;
     } catch (error) {
-      console.error('WhatsApp API Error Details:', {
+      console.error('WhatsApp Media Upload Error Details:', {
         message: error.message,
         status: error.response?.status,
         statusText: error.response?.statusText,
@@ -295,14 +306,24 @@ export class WhatsAppService {
       });
 
       if (error.response?.data) {
-        console.error('WhatsApp API Error Response Body:', JSON.stringify(error.response.data, null, 2));
+        console.error('WhatsApp Media Upload Error Response Body:', JSON.stringify(error.response.data, null, 2));
       }
 
       throw new HttpException(
-        `WhatsApp API Error: ${error.response?.data?.error?.message || error.message}`,
+        `WhatsApp Media Upload Error: ${error.response?.data?.error?.message || error.message}`,
         error.response?.status || 500
       );
     }
+  }
+
+  private getFileExtension(mediaType: string): string {
+    const extensions = {
+      image: 'jpg',
+      video: 'mp4',
+      audio: 'ogg',
+      document: 'pdf',
+    };
+    return extensions[mediaType as keyof typeof extensions] || 'bin';
   }
 
   private getContentType(mediaType: string): string {
@@ -318,7 +339,7 @@ export class WhatsAppService {
   async markMessageAsRead(whatsappMessageId: string) {
     try {
       console.log('WhatsApp API Request:', {
-        url: `${this.apiUrl}/messages`,
+        url: `${this.apiUrl}`,
         data: {
           messaging_product: 'whatsapp',
           status: 'read',
@@ -331,7 +352,7 @@ export class WhatsAppService {
       });
 
       const response = await axios.post(
-        `${this.apiUrl}/messages`,
+        `${this.apiUrl}`,
         {
           messaging_product: 'whatsapp',
           status: 'read',
