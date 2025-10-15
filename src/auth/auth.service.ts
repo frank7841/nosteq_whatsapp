@@ -56,20 +56,12 @@ export class AuthService {
       throw new UnauthorizedException('No token provided');
     }
 
-    try {
-      // Verify the token is valid before blacklisting
-      this.jwtService.verify(token);
-      
-      // Add token to blacklist
-      this.blacklistedTokens.add(token);
-      
-      return {
-        success: true,
-        message: 'Successfully logged out',
-      };
-    } catch (error) {
-      throw new UnauthorizedException('Invalid token');
-    }
+    // For a simple logout, just return success
+    // The client should discard the token
+    return {
+      success: true,
+      message: 'Successfully logged out',
+    };
   }
 
   isTokenBlacklisted(token: string): boolean {
