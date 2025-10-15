@@ -12,6 +12,7 @@ import { Customer } from './customers/entities/customer.entity';
 import { Conversation } from './conversations/entities/conversation.entity';
 import { Message } from './messages/entities/message.entity';
 import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
+import { UploadModule } from './upload/upload.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
     ConversationsModule,
     MessagesModule,
     WhatsAppModule,
+    UploadModule
   ],
 })
 export class AppModule {}

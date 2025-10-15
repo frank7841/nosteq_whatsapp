@@ -6,6 +6,8 @@ import { LoginDto, RegisterDto } from './dto/login.dto';
 
 @Injectable()
 export class AuthService {
+  private blacklistedTokens: Set<string> = new Set();
+
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
@@ -47,5 +49,46 @@ export class AuthService {
     
     const { password, ...result } = user;
     return result;
+  }
+
+  async logout(token: string) {
+    if (!token) {
+      throw new UnauthorizedException('No token provided');
+    }
+
+    try {
+      // Verify the token is valid before blacklisting
+      this.jwtService.verify(token);
+      
+      // Add token to blacklist
+      this.blacklistedTokens.add(token);
+      
+      return {
+        success: true,
+        message: 'Successfully logged out',
+      };
+    } catch (error) {
+      throw new UnauthorizedException('Invalid token');
+    }
+  }
+
+  isTokenBlacklisted(token: string): boolean {
+    return this.blacklistedTokens.has(token);
+  }
+
+  // Clean up expired tokens from blacklist (optional optimization)
+  cleanupBlacklist() {
+    const now = Math.floor(Date.now() / 1000);
+    for (const token of this.blacklistedTokens) {
+      try {
+        const decoded = this.jwtService.decode(token) as any;
+        if (decoded && decoded.exp && decoded.exp < now) {
+          this.blacklistedTokens.delete(token);
+        }
+      } catch (error) {
+        // Remove invalid tokens
+        this.blacklistedTokens.delete(token);
+      }
+    }
   }
 }
