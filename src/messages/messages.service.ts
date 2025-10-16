@@ -269,9 +269,12 @@ export class MessagesService {
     }
 
     if (userId) {
-      // Filter by conversations assigned to the user
-      queryBuilder.andWhere('conversation.assignedUserId = :userId', { userId });
-      console.log('🔍 DEBUG - Filtering by assignedUserId:', userId);
+      // Filter by conversations assigned to the user OR unassigned conversations
+      queryBuilder.andWhere(
+        '(conversation.assignedUserId = :userId OR conversation.assignedUserId IS NULL)',
+        { userId }
+      );
+      console.log('🔍 DEBUG - Filtering by assignedUserId OR unassigned:', userId);
     }
 
     // Log the generated SQL for debugging
@@ -300,8 +303,11 @@ export class MessagesService {
     }
 
     if (userId) {
-      // Filter by conversations assigned to the user
-      queryBuilder.andWhere('conversation.assignedUserId = :userId', { userId });
+      // Filter by conversations assigned to the user OR unassigned conversations
+      queryBuilder.andWhere(
+        '(conversation.assignedUserId = :userId OR conversation.assignedUserId IS NULL)',
+        { userId }
+      );
     }
 
     return queryBuilder.getMany();
@@ -370,7 +376,7 @@ export class MessagesService {
     const userConversations = await this.messageRepository
       .createQueryBuilder('message')
       .leftJoin('message.conversation', 'conversation')
-      .select('DISTINCT conversation.id', 'conversationId')
+      .select('DISTINCT(conversation.id)', 'conversationId')
       .addSelect('conversation.assignedUserId', 'assignedUserId')
       .where('conversation.assignedUserId = :userId', { userId })
       .getRawMany();
