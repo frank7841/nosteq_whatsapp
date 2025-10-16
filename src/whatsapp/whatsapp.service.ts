@@ -338,8 +338,10 @@ export class WhatsAppService {
 
   async markMessageAsRead(whatsappMessageId: string) {
     try {
-      console.log('WhatsApp API Request:', {
-        url: `${this.apiUrl}`,
+      const readEndpoint = `${this.apiUrl}`;
+      
+      console.log('WhatsApp Mark Read API Request:', {
+        url: readEndpoint,
         data: {
           messaging_product: 'whatsapp',
           status: 'read',
@@ -352,7 +354,7 @@ export class WhatsAppService {
       });
 
       const response = await axios.post(
-        `${this.apiUrl}`,
+        readEndpoint,
         {
           messaging_product: 'whatsapp',
           status: 'read',
@@ -366,14 +368,15 @@ export class WhatsAppService {
         },
       );
 
-      console.log('WhatsApp API Success Response:', response.data);
+      console.log('WhatsApp Mark Read API Success Response:', response.data);
       return response.data;
     } catch (error) {
-      console.error('WhatsApp API Error Details:', {
+      console.error('WhatsApp Mark Read API Error Details:', {
         message: error.message,
         status: error.response?.status,
         statusText: error.response?.statusText,
         data: error.response?.data,
+        whatsappMessageId,
         config: {
           url: error.config?.url,
           method: error.config?.method,
@@ -385,11 +388,11 @@ export class WhatsAppService {
       });
 
       if (error.response?.data) {
-        console.error('WhatsApp API Error Response Body:', JSON.stringify(error.response.data, null, 2));
+        console.error('WhatsApp Mark Read API Error Response Body:', JSON.stringify(error.response.data, null, 2));
       }
 
       throw new HttpException(
-        `WhatsApp API Error: ${error.response?.data?.error?.message || error.message}`,
+        `WhatsApp Mark Read API Error: ${error.response?.data?.error?.message || error.message}`,
         error.response?.status || 500
       );
     }

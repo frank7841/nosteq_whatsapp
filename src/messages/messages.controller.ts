@@ -8,7 +8,8 @@ import {
     Request,
     HttpCode,
     HttpStatus,
-    BadRequestException
+    BadRequestException,
+    Query
   } from '@nestjs/common';
   import { MessagesService } from './messages.service';
   import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -27,6 +28,11 @@ import {
     mediaType: 'image' | 'video' | 'document' | 'audio';
     mediaUrl: string;
     caption?: string;
+  }
+
+  class MarkConversationReadDto {
+    conversationId: number;
+    userId?: number;
   }
   
   @Controller('messages')
@@ -93,6 +99,43 @@ import {
     @HttpCode(HttpStatus.OK)
     async markAsRead(@Param('messageId') messageId: string) {
       return this.messagesService.markAsRead(+messageId);
+    }
+
+    @Post('conversation/:conversationId/read')
+    @HttpCode(HttpStatus.OK)
+    async markConversationAsRead(
+      @Param('conversationId') conversationId: string,
+      @Request() req,
+      @Body() body?: { userId?: number }
+    ) {
+      const userId = body?.userId || req.user.userId;
+      await this.messagesService.markConversationAsRead(+conversationId, userId);
+      return { success: true, message: 'Conversation marked as read' };
+    }
+
+    @Get('unread/count')
+    @HttpCode(HttpStatus.OK)
+    async getUnreadCount(
+      @Request() req,
+      @Query('conversationId') conversationId?: string
+    ) {
+      const count = await this.messagesService.getUnreadCount(
+        conversationId ? +conversationId : undefined,
+        req.user.userId
+      );
+      return { count };
+    }
+
+    @Get('unread')
+    @HttpCode(HttpStatus.OK)
+    async getUnreadMessages(
+      @Request() req,
+      @Query('conversationId') conversationId?: string
+    ) {
+      return this.messagesService.getUnreadMessages(
+        conversationId ? +conversationId : undefined,
+        req.user.userId
+      );
     }
   }
   

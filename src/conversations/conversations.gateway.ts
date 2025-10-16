@@ -68,6 +68,48 @@ export class ConversationsGateway implements OnGatewayConnection, OnGatewayDisco
   }
 
   emitConversationUpdate(conversationId: number, update: any) {
-    this.server.emit('conversation_update', { conversationId, ...update });
+    // Emit to specific conversation room AND globally for conversation list updates
+    this.server.to(`conversation_${conversationId}`).emit('conversation_update', { conversationId, ...update });
+    // Also emit globally for conversation list updates (e.g., status changes in sidebar)
+    this.server.emit('conversation_status_change', { conversationId, ...update });
+  }
+
+  emitMessageRead(conversationId: number, data: { messageId: number; readAt: Date }) {
+    this.server.to(`conversation_${conversationId}`).emit('message_read', data);
+  }
+
+  emitConversationRead(conversationId: number, data: { messageIds: number[]; readAt: Date }) {
+    this.server.to(`conversation_${conversationId}`).emit('conversation_read', data);
+  }
+
+  // Emit unread count updates globally (for notification badges, etc.)
+  emitUnreadCountUpdate(userId?: number, data?: { totalUnread: number; conversationId?: number; conversationUnread?: number }) {
+    if (userId) {
+      // Emit to specific user if userId provided
+      this.server.to(`user_${userId}`).emit('unread_count_update', data);
+    } else {
+      // Emit globally if no specific user
+      this.server.emit('unread_count_update', data);
+    }
+  }
+
+  // Handle user-specific rooms for targeted notifications
+  @SubscribeMessage('join_user_room')
+  handleJoinUserRoom(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { userId: number },
+  ) {
+    client.join(`user_${data.userId}`);
+    console.log(`User ${data.userId} joined their personal room`);
+  }
+
+  // Enhanced message read event with more context
+  emitMessageReadWithContext(conversationId: number, data: { 
+    messageId: number; 
+    readAt: Date; 
+    conversationUnreadCount: number;
+    totalUnreadCount?: number;
+  }) {
+    this.server.to(`conversation_${conversationId}`).emit('message_read_detailed', data);
   }
 }

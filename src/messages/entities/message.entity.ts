@@ -72,6 +72,8 @@ export class Message {
     default: MessageStatus.SENT,
   })
   status: MessageStatus;
+  @Column({ name: 'read_at', type: 'timestamp', nullable: true })
+  readAt?: Date;
 
   @Column({ type: 'json', nullable: true })
   metadata: any;
@@ -91,4 +93,12 @@ export class Message {
   @ManyToOne(() => User, (user) => user.messages)
   @JoinColumn({ name: 'user_id' })
   user: User;
+  
+  get isRead(): boolean {
+    return this.readAt !== null && this.readAt !== undefined;
+  }
+
+  get isUnread(): boolean {
+    return !this.isRead;
+  }
 }

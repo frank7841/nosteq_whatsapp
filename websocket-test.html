@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Test Client</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .event-log { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .event-name { font-weight: bold; color: #2196F3; }
+        .event-data { margin-left: 20px; color: #666; }
+        .controls { margin: 20px 0; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+        input { padding: 8px; margin: 5px; }
+        .status { padding: 10px; border-radius: 5px; margin: 10px 0; }
+        .connected { background: #4CAF50; color: white; }
+        .disconnected { background: #f44336; color: white; }
+    </style>
+</head>
+<body>
+    <h1>🔌 WhatsApp Gateway WebSocket Test Client</h1>
+    
+    <div id="status" class="status disconnected">❌ Disconnected</div>
+    
+    <div class="controls">
+        <h3>Connection</h3>
+        <input type="text" id="token" placeholder="JWT Token" style="width: 400px;">
+        <button onclick="connect()">Connect</button>
+        <button onclick="disconnect()">Disconnect</button>
+        
+        <h3>Join Rooms</h3>
+        <input type="number" id="conversationId" placeholder="Conversation ID" value="1">
+        <button onclick="joinConversation()">Join Conversation</button>
+        
+        <input type="number" id="userId" placeholder="User ID" value="1">
+        <button onclick="joinUserRoom()">Join User Room</button>
+        
+        <h3>Test Actions</h3>
+        <button onclick="clearLog()">Clear Log</button>
+        <button onclick="testMarkAsRead()">Test Mark Message as Read</button>
+    </div>
+    
+    <div id="eventLog">
+        <h3>📡 Real-Time Events Log:</h3>
+    </div>
+
+    <script>
+        let socket = null;
+        
+        function connect() {
+            const token = document.getElementById('token').value;
+            if (!token) {
+                alert('Please enter JWT token');
+                return;
+            }
+            
+            socket = io('http://localhost:3000', {
+                auth: { token: token },
+                transports: ['websocket', 'polling']
+            });
+            
+            socket.on('connect', () => {
+                updateStatus('✅ Connected', 'connected');
+                logEvent('connect', { socketId: socket.id });
+            });
+            
+            socket.on('disconnect', () => {
+                updateStatus('❌ Disconnected', 'disconnected');
+                logEvent('disconnect', {});
+            });
+            
+            socket.on('connect_error', (error) => {
+                updateStatus('❌ Connection Error', 'disconnected');
+                logEvent('connect_error', { error: error.message });
+            });
+            
+            // Listen to all read/unread events
+            socket.on('new_message', (data) => logEvent('new_message', data));
+            socket.on('message_read', (data) => logEvent('message_read', data));
+            socket.on('conversation_read', (data) => logEvent('conversation_read', data));
+            socket.on('conversation_update', (data) => logEvent('conversation_update', data));
+            socket.on('conversation_status_change', (data) => logEvent('conversation_status_change', data));
+            socket.on('unread_count_update', (data) => logEvent('unread_count_update', data));
+            socket.on('message_read_detailed', (data) => logEvent('message_read_detailed', data));
+            
+            // Catch all other events
+            socket.onAny((eventName, ...args) => {
+                if (!['connect', 'disconnect', 'connect_error', 'new_message', 'message_read', 'conversation_read', 'conversation_update', 'conversation_status_change', 'unread_count_update', 'message_read_detailed'].includes(eventName)) {
+                    logEvent(eventName, args);
+                }
+            });
+        }
+        
+        function disconnect() {
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+            }
+        }
+        
+        function joinConversation() {
+            if (!socket) {
+                alert('Please connect first');
+                return;
+            }
+            const conversationId = parseInt(document.getElementById('conversationId').value);
+            socket.emit('join_conversation', { conversationId });
+            logEvent('join_conversation_sent', { conversationId });
+        }
+        
+        function joinUserRoom() {
+            if (!socket) {
+                alert('Please connect first');
+                return;
+            }
+            const userId = parseInt(document.getElementById('userId').value);
+            socket.emit('join_user_room', { userId });
+            logEvent('join_user_room_sent', { userId });
+        }
+        
+        function testMarkAsRead() {
+            const conversationId = document.getElementById('conversationId').value;
+            const token = document.getElementById('token').value;
+            
+            // Make API call to mark message as read
+            fetch(`http://localhost:3000/api/messages/1/read`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                logEvent('api_call_result', { endpoint: 'mark_as_read', data });
+            })
+            .catch(error => {
+                logEvent('api_call_error', { error: error.message });
+            });
+        }
+        
+        function updateStatus(text, className) {
+            const status = document.getElementById('status');
+            status.textContent = text;
+            status.className = `status ${className}`;
+        }
+        
+        function logEvent(eventName, data) {
+            const log = document.getElementById('eventLog');
+            const timestamp = new Date().toLocaleTimeString();
+            
+            const eventDiv = document.createElement('div');
+            eventDiv.className = 'event-log';
+            eventDiv.innerHTML = `
+                <div class="event-name">[${timestamp}] 📡 ${eventName}</div>
+                <div class="event-data">${JSON.stringify(data, null, 2)}</div>
+            `;
+            
+            log.appendChild(eventDiv);
+            log.scrollTop = log.scrollHeight;
+        }
+        
+        function clearLog() {
+            document.getElementById('eventLog').innerHTML = '<h3>📡 Real-Time Events Log:</h3>';
+        }
+        
+        // Auto-fill token if available in localStorage
+        window.onload = function() {
+            const savedToken = localStorage.getItem('jwt_token');
+            if (savedToken) {
+                document.getElementById('token').value = savedToken;
+            }
+        }
+    </script>
+</body>
+</html>
