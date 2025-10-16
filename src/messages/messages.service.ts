@@ -146,19 +146,23 @@ export class MessagesService {
       throw new NotFoundException(`Message with ID ${messageId} not found`);
     }
 
-    // Only mark as read if it's not already read
-    if (message.readAt) {
-      return this.messageRepository.findOne({
-        where: { id: messageId },
-        relations: ['customer', 'user'],
-      }) as Promise<Message>;
-    }
+    // // Only mark as read if it's not already read
+    // if (message.readAt) {
+    //   return this.messageRepository.findOne({
+    //     where: { id: messageId },
+    //     relations: ['customer', 'user'],
+    //   }) as Promise<Message>;
+    // }
 
-    // Only allow marking incoming messages as read (not outgoing messages)
     if (message.direction !== MessageDirection.INBOUND) {
       throw new BadRequestException(
         `Cannot mark outgoing message as read. Only incoming messages from customers can be marked as read.`
       );
+    }else if(message.readAt){
+      return this.messageRepository.findOne({
+        where: { id: messageId },
+        relations: ['customer', 'user'],
+      }) as Promise<Message>;
     }
 
     // Check if WhatsApp message ID is valid (not a test ID)
@@ -194,8 +198,6 @@ export class MessagesService {
       messageId,
       readAt,
     });
-
-    // Update conversation status based on unread messages
     await this.updateConversationStatus(message.conversationId);
 
     return updatedMessage;
@@ -204,11 +206,10 @@ export class MessagesService {
   async markConversationAsRead(conversationId: number, userId?: number): Promise<void> {
     const whereCondition: any = {
       conversationId,
-      readAt: null, // Only unread messages
-      direction: MessageDirection.INBOUND, // CRITICAL: Only mark incoming messages as read
+      readAt: null, 
+      direction: MessageDirection.INBOUND, 
     };
 
-    // If userId is provided, only mark messages from that user as read
     if (userId) {
       whereCondition.userId = userId;
     }
@@ -225,7 +226,6 @@ export class MessagesService {
     const readAt = new Date();
     const messageIds = unreadMessages.map(msg => msg.id);
 
-    // Update all unread messages in the conversation
     await this.messageRepository.update(
       messageIds,
       {
@@ -234,14 +234,11 @@ export class MessagesService {
       }
     );
 
-    // Mark messages as read in WhatsApp if they have whatsappMessageId
     const whatsappMessageIds = unreadMessages
       .filter(msg => msg.whatsappMessageId)
       .map(msg => msg.whatsappMessageId);
 
     if (whatsappMessageIds.length > 0) {
-      // Note: WhatsApp API might not support bulk read operations
-      // You may need to call markMessageAsRead for each message individually
       for (const whatsappId of whatsappMessageIds) {
         try {
           await this.whatsappService.markMessageAsRead(whatsappId);
@@ -251,52 +248,50 @@ export class MessagesService {
       }
     }
 
-    // Emit bulk read status update via WebSocket
     this.conversationsGateway.emitConversationRead(conversationId, {
       messageIds,
       readAt,
     });
-
-    // Update conversation status based on unread messages
     await this.updateConversationStatus(conversationId);
   }
 
   async getUnreadCount(conversationId?: number, userId?: number): Promise<number> {
-    const whereCondition: any = {
-      readAt: null,
-      direction: MessageDirection.INBOUND, // Only count incoming messages as unread
-    };
+    const queryBuilder = this.messageRepository.createQueryBuilder('message')
+      .leftJoin('message.conversation', 'conversation')
+      .where('message.readAt IS NULL')
+      .andWhere('message.direction = :direction', { direction: MessageDirection.INBOUND });
 
     if (conversationId) {
-      whereCondition.conversationId = conversationId;
+      queryBuilder.andWhere('message.conversationId = :conversationId', { conversationId });
     }
 
     if (userId) {
-      whereCondition.userId = userId;
+      // Filter by conversations assigned to the user
+      queryBuilder.andWhere('conversation.assignedUserId = :userId', { userId });
     }
 
-    return this.messageRepository.count({ where: whereCondition });
+    return queryBuilder.getCount();
   }
 
   async getUnreadMessages(conversationId?: number, userId?: number): Promise<Message[]> {
-    const whereCondition: any = {
-      readAt: null,
-      direction: MessageDirection.INBOUND,
-    };
+    const queryBuilder = this.messageRepository.createQueryBuilder('message')
+      .leftJoinAndSelect('message.conversation', 'conversation')
+      .leftJoinAndSelect('message.customer', 'customer')
+      .leftJoinAndSelect('message.user', 'user')
+      .where('message.readAt IS NULL')
+      .andWhere('message.direction = :direction', { direction: MessageDirection.INBOUND })
+      .orderBy('message.createdAt', 'DESC');
 
     if (conversationId) {
-      whereCondition.conversationId = conversationId;
+      queryBuilder.andWhere('message.conversationId = :conversationId', { conversationId });
     }
 
     if (userId) {
-      whereCondition.userId = userId;
+      // Filter by conversations assigned to the user
+      queryBuilder.andWhere('conversation.assignedUserId = :userId', { userId });
     }
 
-    return this.messageRepository.find({
-      where: whereCondition,
-      relations: ['customer', 'user', 'conversation'],
-      order: { createdAt: 'DESC' },
-    });
+    return queryBuilder.getMany();
   }
 
   private async updateConversationStatus(conversationId: number): Promise<void> {
