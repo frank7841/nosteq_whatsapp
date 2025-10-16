@@ -204,20 +204,27 @@ export class MessagesService {
   }
 
   async markConversationAsRead(conversationId: number, userId?: number): Promise<void> {
-    const whereCondition: any = {
-      conversationId,
-      readAt: null, 
-      direction: MessageDirection.INBOUND, 
-    };
+    console.log('🔍 DEBUG - markConversationAsRead called with:', { conversationId, userId });
+    
+    // Use QueryBuilder to match the same logic as unread queries
+    const queryBuilder = this.messageRepository.createQueryBuilder('message')
+      .leftJoin('message.conversation', 'conversation')
+      .select(['message.id', 'message.whatsappMessageId'])
+      .where('message.conversationId = :conversationId', { conversationId })
+      .andWhere('message.readAt IS NULL')
+      .andWhere('message.direction = :direction', { direction: MessageDirection.INBOUND });
 
     if (userId) {
-      whereCondition.userId = userId;
+      // Filter by conversations assigned to the user OR unassigned conversations
+      queryBuilder.andWhere(
+        '(conversation.assignedUserId = :userId OR conversation.assignedUserId IS NULL)',
+        { userId }
+      );
+      console.log('🔍 DEBUG - Filtering by assignedUserId OR unassigned:', userId);
     }
 
-    const unreadMessages = await this.messageRepository.find({
-      where: whereCondition,
-      select: ['id', 'whatsappMessageId'],
-    });
+    const unreadMessages = await queryBuilder.getMany();
+    console.log('🔍 DEBUG - Found unread messages to mark as read:', unreadMessages.length);
 
     if (unreadMessages.length === 0) {
       return;
