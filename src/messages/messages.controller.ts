@@ -50,7 +50,7 @@ import {
     @HttpCode(HttpStatus.CREATED)
     async sendMessage(@Body() body: SendMessageDto, @Request() req) {
 
-      console.log('📥 Received send message request:', body);
+      console.log(' Received send message request:', body);
     
       const { conversationId, customerId, content, phoneNumber } = body;
       
@@ -136,6 +136,12 @@ import {
         conversationId ? +conversationId : undefined,
         req.user.userId
       );
+    }
+
+    @Get('debug/unread-diagnostics')
+    @HttpCode(HttpStatus.OK)
+    async getUnreadDiagnostics(@Request() req) {
+      return this.messagesService.getUnreadDiagnostics(req.user.userId);
     }
   }
   

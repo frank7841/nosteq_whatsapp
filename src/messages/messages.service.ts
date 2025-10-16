@@ -256,6 +256,8 @@ export class MessagesService {
   }
 
   async getUnreadCount(conversationId?: number, userId?: number): Promise<number> {
+    console.log('🔍 DEBUG - getUnreadCount called with:', { conversationId, userId });
+    
     const queryBuilder = this.messageRepository.createQueryBuilder('message')
       .leftJoin('message.conversation', 'conversation')
       .where('message.readAt IS NULL')
@@ -263,14 +265,25 @@ export class MessagesService {
 
     if (conversationId) {
       queryBuilder.andWhere('message.conversationId = :conversationId', { conversationId });
+      console.log('🔍 DEBUG - Filtering by conversationId:', conversationId);
     }
 
     if (userId) {
       // Filter by conversations assigned to the user
       queryBuilder.andWhere('conversation.assignedUserId = :userId', { userId });
+      console.log('🔍 DEBUG - Filtering by assignedUserId:', userId);
     }
 
-    return queryBuilder.getCount();
+    // Log the generated SQL for debugging
+    const sql = queryBuilder.getSql();
+    const parameters = queryBuilder.getParameters();
+    console.log('🔍 DEBUG - Generated SQL:', sql);
+    console.log('🔍 DEBUG - SQL Parameters:', parameters);
+
+    const count = await queryBuilder.getCount();
+    console.log('🔍 DEBUG - Unread count result:', count);
+    
+    return count;
   }
 
   async getUnreadMessages(conversationId?: number, userId?: number): Promise<Message[]> {
@@ -330,6 +343,69 @@ export class MessagesService {
 
       console.log(`Conversation ${conversationId} status updated to ${newStatus} (unread incoming messages: ${unreadIncomingCount})`);
     }
+  }
+  async getUnreadDiagnostics(userId: number) {
+    console.log('🔍 DIAGNOSTICS - Starting unread diagnostics for userId:', userId);
+    
+    // 1. Check total messages
+    const totalMessages = await this.messageRepository.count();
+    console.log('📊 Total messages in database:', totalMessages);
+    
+    // 2. Check inbound messages
+    const inboundMessages = await this.messageRepository.count({
+      where: { direction: MessageDirection.INBOUND }
+    });
+    console.log('📊 Total inbound messages:', inboundMessages);
+    
+    // 3. Check unread inbound messages (no user filter)
+    const unreadInbound = await this.messageRepository.count({
+      where: { 
+        direction: MessageDirection.INBOUND,
+        readAt: IsNull()
+      }
+    });
+    console.log('📊 Total unread inbound messages:', unreadInbound);
+    
+    // 4. Check conversations assigned to user
+    const userConversations = await this.messageRepository
+      .createQueryBuilder('message')
+      .leftJoin('message.conversation', 'conversation')
+      .select('DISTINCT conversation.id', 'conversationId')
+      .addSelect('conversation.assignedUserId', 'assignedUserId')
+      .where('conversation.assignedUserId = :userId', { userId })
+      .getRawMany();
+    console.log('📊 Conversations assigned to user:', userConversations);
+    
+    // 5. Check messages in user's conversations
+    const messagesInUserConversations = await this.messageRepository
+      .createQueryBuilder('message')
+      .leftJoin('message.conversation', 'conversation')
+      .where('conversation.assignedUserId = :userId', { userId })
+      .andWhere('message.direction = :direction', { direction: MessageDirection.INBOUND })
+      .getCount();
+    console.log('📊 Inbound messages in user conversations:', messagesInUserConversations);
+    
+    // 6. Check unread messages in user's conversations
+    const unreadInUserConversations = await this.messageRepository
+      .createQueryBuilder('message')
+      .leftJoin('message.conversation', 'conversation')
+      .where('conversation.assignedUserId = :userId', { userId })
+      .andWhere('message.direction = :direction', { direction: MessageDirection.INBOUND })
+      .andWhere('message.readAt IS NULL')
+      .getCount();
+    console.log('📊 Unread inbound messages in user conversations:', unreadInUserConversations);
+    
+    return {
+      userId,
+      totalMessages,
+      inboundMessages,
+      unreadInbound,
+      userConversations: userConversations.length,
+      conversationDetails: userConversations,
+      messagesInUserConversations,
+      unreadInUserConversations,
+      timestamp: new Date().toISOString()
+    };
   }
 
   async getMessageStats(userId?: number) {
